@@ -12,32 +12,20 @@ api/                    Vercel functions — what runs in production
   healthz.js              GET /healthz            is the database reachable
   _lib.js                 shared HTTP helpers
 db.js                   Postgres storage and the concurrent-edit merge
-server.js               plain Node server — local dev, or any always-on host
 build.js                copies the page + fonts into public/ for Vercel
 vercel.json             build settings and the /g/<id> rewrites
 project/uploads/
   index.html            the itinerary — the only page, hand-written
   fonts/                self-hosted Noto Serif (Latin / TC / KR)
-DEPLOY.md               step-by-step Neon + Vercel setup
 ```
 
 `project/uploads/index.html` is canonical. `build.js` copies it into `public/`
 at deploy time, and `public/` is gitignored — so there is never a second copy of
-the page to drift out of sync. Both `server.js` and the `api/` functions call
-into the same `db.js`, so the sync behaviour is identical either way.
-
-## Running locally
-
-```bash
-npm install
-DATABASE_URL='postgresql://...' npm start   # http://localhost:8000
-```
-
-`DATABASE_URL` is optional. Without it the itinerary still serves and the 分帳
-tab works as a local, single-browser book; only sharing is switched off.
+the page to drift out of sync.
 
 `project/uploads/index.html` also opens straight off the filesystem with no
-server at all — asset paths are relative so that this keeps working.
+server at all — asset paths are relative so that this keeps working. That is the
+only way to run it locally; there is no local server in the repo.
 
 ## The 分帳 tab
 
@@ -61,9 +49,16 @@ link is. Neither has a separate password.
 
 ## Deploying
 
-See [DEPLOY.md](DEPLOY.md). Runs on Vercel's free Hobby plan with a free Neon
-Postgres database. The database is separate because Vercel's functions are
-stateless — nothing they write survives the request.
+Vercel's free Hobby plan, building from GitHub on every push to `main`, with a
+free Neon Postgres database. The database is separate because Vercel's functions
+are stateless — nothing they write survives the request.
+
+One environment variable is required: `DATABASE_URL`, set on the Vercel project
+to Neon's **pooled** connection string (the hostname containing `-pooler`).
+Without it the itinerary still serves and 分帳 falls back to a local
+single-browser book; `/healthz` reports `{"ok":true,"db":false}` with a reason.
+Put Neon in the same region as Vercel's functions — every query is a
+server-to-server hop, so a mismatch costs far more than your own distance does.
 
 To keep within the free invocation budget the page varies its sync rate: every
 4s while someone is entering a bill, backing off to 30s once the book has been

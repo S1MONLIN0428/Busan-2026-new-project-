@@ -24,7 +24,4 @@ for (const f of fs.readdirSync(path.join(SRC, 'fonts'))) {
   fonts++;
 }
 
-const plane = path.join(SRC, 'plane.png');
-if (fs.existsSync(plane)) fs.copyFileSync(plane, path.join(OUT, 'plane.png'));
-
 console.log(`built public/ — index.html + ${fonts} fonts`);

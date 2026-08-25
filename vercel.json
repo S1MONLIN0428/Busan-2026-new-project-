@@ -6,8 +6,6 @@
     { "source": "/healthz", "destination": "/api/healthz" },
     { "source": "/g/fonts/:file", "destination": "/fonts/:file" },
     { "source": "/g/:id/fonts/:file", "destination": "/fonts/:file" },
-    { "source": "/g/plane.png", "destination": "/plane.png" },
-    { "source": "/g/:id/plane.png", "destination": "/plane.png" },
     { "source": "/g/:id", "destination": "/index.html" }
   ]
 }

@@ -1,7 +1,7 @@
 'use strict';
 
 // Shared by the Vercel functions under api/. The domain logic all lives in
-// db.js, which server.js uses too — these wrappers only deal with HTTP.
+// db.js — these wrappers only deal with HTTP.
 
 const crypto = require('crypto');
 

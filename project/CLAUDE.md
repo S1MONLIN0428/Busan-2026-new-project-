@@ -30,16 +30,17 @@ Amount fields must never use `inputmode="none"` — that is only correct for the
 `data-fx` fields in 換算, which are `readonly` and driven by the page's own
 keypad. Anywhere else it leaves a phone with no keyboard at all.
 
-Production is Vercel: the `api/` functions at the repo root handle the ledger,
-and `build.js` copies this page plus its fonts into a gitignored `public/`.
-`server.js` is the same thing as a single always-on Node process — useful
-locally and on any non-serverless host. Both go through `db.js`, so they behave
-identically. Storage is Postgres (Neon) — see `DEPLOY.md` at the repo root.
+Production is Vercel and nothing else: the `api/` functions at the repo root
+handle the ledger through `db.js`, and `build.js` copies this page plus its
+fonts into a gitignored `public/`. Storage is Postgres (Neon), reached via
+`DATABASE_URL` (the pooled `-pooler` connection string) set on the Vercel
+project. There is no local server — open this file off disk to work on the page
+itself, which exercises everything except sharing.
 
 Because assets are referenced relatively, a share link needs three route
 rewrites, not one: `/g/<id>` serves the page, and both `/g/fonts/*` (no
 trailing slash on the link) and `/g/<id>/fonts/*` (trailing slash) must map
-back to the real fonts. These live in `vercel.json`, mirrored in `server.js`.
+back to the real fonts. These live in `vercel.json`.
 
 Polling rate is deliberate, not arbitrary: each check is a billed Vercel
 invocation, so `spPollPeriod()` backs off from 4s to 30s as the book goes quiet
