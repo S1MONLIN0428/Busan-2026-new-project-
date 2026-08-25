@@ -43,13 +43,28 @@ git push -u origin main
 ## Step 2 — Create the Neon database
 
 1. Go to <https://neon.com> and sign up (GitHub login works; no card needed).
-2. Click **Create project**. Any name is fine — e.g. `busan`. Pick the region
-   closest to you; `AWS ap-southeast-1 (Singapore)` is the nearest to Taiwan.
+2. Click **Create project**. Any name is fine — e.g. `busan`.
+
+   **Match the region to Koyeb, not to yourself.** Koyeb's free instance can
+   only run in **Frankfurt** or **Washington, D.C.**, and every database query
+   is a server-to-server hop from there. Putting the database near you instead
+   of near Koyeb adds that distance to every single query. Your own distance to
+   Koyeb costs one request per page load, which barely matters by comparison.
+
+   | Koyeb region chosen in step 3 | Neon region to pick |
+   | --- | --- |
+   | Washington, D.C. | `AWS us-east-1` (N. Virginia) |
+   | Frankfurt | `AWS eu-central-1` (Frankfurt) |
+
+   A Neon project's region cannot be changed after creation. If you already made
+   one in the wrong region, just create a second project in the right one and
+   delete the first — there is nothing in it yet.
+
 3. When the project opens you land on a **Connect** panel with a connection
    string. Click the copy button. It looks like:
 
    ```
-   postgresql://neondb_owner:npg_AbCd1234@ep-cool-name-a1b2c3-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+   postgresql://neondb_owner:npg_AbCd1234@ep-cool-name-a1b2c3-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require
    ```
 
    If you closed the panel: **Dashboard → Connect** re-opens it.
@@ -70,7 +85,17 @@ git push -u origin main
    Branch `main`.
 3. Koyeb detects Node automatically and will run `npm start`. Leave the builder
    as **Buildpack**; you do not need the Dockerfile option.
-4. **Instance type**: `Free`.
+4. **Instance type**: `Free`. **Region**: Frankfurt or Washington, D.C. — those
+   are the only two the free instance runs in, and this must match the Neon
+   region from step 2.
+
+   > An empty Koyeb dashboard just means no service exists yet — there is
+   > nothing to repair, only the wizard to finish. Two things that stop people
+   > here: Koyeb may ask for a card to prove you are not a bot (it authorises
+   > $29 and voids it immediately — the free instance itself is not charged),
+   > and each **organization** gets exactly one free instance, so if the
+   > org-switcher at the top-left is on an org that already has one, the Free
+   > option will be unavailable there.
 5. **Environment variables** — click *Add variable*:
 
    | Name           | Type   | Value                                  |
