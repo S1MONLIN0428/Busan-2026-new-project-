@@ -41,6 +41,13 @@ function getPool() {
   pool.on('error', (err) => {
     console.error('[db] idle client error:', err.message);
   });
+  // On Vercel, hand the pool to the runtime so idle connections are closed
+  // before a function is suspended rather than leaking. Absent everywhere else,
+  // which is why this is optional.
+  try {
+    const { attachDatabasePool } = require('@vercel/functions');
+    if (typeof attachDatabasePool === 'function') attachDatabasePool(pool);
+  } catch (e) { /* not running on Vercel */ }
   return pool;
 }
 
@@ -61,6 +68,20 @@ async function init() {
     )
   `);
   return true;
+}
+
+// Serverless calls this on every request, so the work must happen once per warm
+// instance, not once per invocation. A failed attempt is not cached — the next
+// request retries rather than being stuck with a dead promise.
+let readyPromise = null;
+function ensureReady() {
+  if (!readyPromise) {
+    readyPromise = init().catch((err) => {
+      readyPromise = null;
+      throw err;
+    });
+  }
+  return readyPromise;
 }
 
 // ---- validation -----------------------------------------------------------
@@ -252,6 +273,6 @@ async function applyDelta(id, delta) {
 }
 
 module.exports = {
-  init, isConfigured, getLedger, createLedger, applyDelta,
+  init, ensureReady, isConfigured, getLedger, createLedger, applyDelta,
   MAX_MEMBERS, MAX_EXPENSES,
 };

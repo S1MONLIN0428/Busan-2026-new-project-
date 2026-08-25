@@ -6,16 +6,25 @@ several people can edit at the same time.
 ## Layout
 
 ```
-server.js               HTTP server: serves the page and the ledger API
+api/                    Vercel functions — what runs in production
+  ledger/index.js         POST /api/ledger        create a ledger
+  ledger/[id].js          GET|POST /api/ledger/:id  read / apply a delta
+  healthz.js              GET /healthz            is the database reachable
+  _lib.js                 shared HTTP helpers
 db.js                   Postgres storage and the concurrent-edit merge
+server.js               plain Node server — local dev, or any always-on host
+build.js                copies the page + fonts into public/ for Vercel
+vercel.json             build settings and the /g/<id> rewrites
 project/uploads/
   index.html            the itinerary — the only page, hand-written
   fonts/                self-hosted Noto Serif (Latin / TC / KR)
-DEPLOY.md               step-by-step Neon + Koyeb setup
+DEPLOY.md               step-by-step Neon + Vercel setup
 ```
 
-There is no build step. `server.js` serves `project/uploads/index.html`
-directly, so the page has exactly one copy.
+`project/uploads/index.html` is canonical. `build.js` copies it into `public/`
+at deploy time, and `public/` is gitignored — so there is never a second copy of
+the page to drift out of sync. Both `server.js` and the `api/` functions call
+into the same `db.js`, so the sync behaviour is identical either way.
 
 ## Running locally
 
@@ -52,6 +61,10 @@ Access is by unguessable link alone — treat the link as the ledger itself.
 
 ## Deploying
 
-See [DEPLOY.md](DEPLOY.md). Runs on Koyeb's free instance with a free Neon
-Postgres database; the database is separate because Koyeb's container has no
-durable disk.
+See [DEPLOY.md](DEPLOY.md). Runs on Vercel's free Hobby plan with a free Neon
+Postgres database. The database is separate because Vercel's functions are
+stateless — nothing they write survives the request.
+
+To keep within the free invocation budget the page varies its sync rate: every
+4s while someone is entering a bill, backing off to 30s once the book has been
+still, and stopping entirely when the tab is hidden.

@@ -1116,6 +1116,7 @@
   }
   function spSave() {
     spCacheSave();
+    spTouch();
     if (SP_GROUP) spSchedulePush();
   }
 
@@ -1237,6 +1238,11 @@
   var spInFlight = false;
   var spPushTimer = null;
   var spDeferredRepaint = false;
+  // When the book last actually moved, or the user last touched the panel.
+  // Polling backs off from this: see spPollPeriod.
+  var spLastChange = Date.now();
+  var spLastPoll = 0;
+  function spTouch() { spLastChange = Date.now(); }
 
   function spSnap(x) { return JSON.parse(JSON.stringify(x)); }
   function spIndex(arr) {
@@ -1318,6 +1324,8 @@
   // typed while the request was open so no keystroke is lost to a round trip.
   function spAdopt(doc, sinceBase) {
     var pending = spDiff(sinceBase || spBase, sp);
+    // Somebody else moved the book: go back to checking quickly.
+    if ((doc.version || 0) !== spVersion) spTouch();
     sp.members = doc.members || [];
     sp.expenses = doc.expenses || [];
     spVersion = doc.version || 0;
@@ -1390,17 +1398,34 @@
     else spPull();
   }
 
+  // Every poll is a server request — on a serverless host, a billed one — so the
+  // rate follows what is actually happening rather than running flat out. While
+  // people are entering a bill it is quick; once the book has been still for a
+  // while it slows down, and a panel nobody is looking at barely checks at all.
+  // Any edit, any arriving change, or a tap on the panel resets it to quick.
+  function spPollPeriod() {
+    if (active !== TAB_LABELS.indexOf('分帳')) return 30000;
+    var idle = Date.now() - spLastChange;
+    if (idle < 120000) return 4000;
+    if (idle < 600000) return 10000;
+    return 30000;
+  }
+
   if (SP_GROUP && SP_CAN_SHARE) {
-    // Fast while the tab is the one being looked at, lazy otherwise: the free
-    // instance sleeps on idle traffic, and there is no reason to keep it awake
-    // for a panel nobody has open.
     setInterval(function () {
-      var onSplit = active === TAB_LABELS.indexOf('分帳');
-      if (onSplit || (Date.now() - spNet.at) > 30000) spTick();
-    }, 4000);
+      if (document.hidden) return;
+      if (Date.now() - spLastPoll < spPollPeriod()) return;
+      spLastPoll = Date.now();
+      spTick();
+    }, 2000);
+    // Coming back to the page is itself a reason to check immediately.
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) spTick();
+      if (document.hidden) return;
+      spTouch();
+      spLastPoll = Date.now();
+      spTick();
     });
+    spLastPoll = Date.now();
     spTick();
   }
 
@@ -1697,6 +1722,9 @@
   function spWire() {
     track.addEventListener('click', function (ev) {
       var t, i;
+      // Someone is working in the panel, so keep the sync responsive even if
+      // the taps have not changed anything yet.
+      if (ev.target.closest && ev.target.closest('[data-split-body]')) spTouch();
 
       t = ev.target.closest('[data-sp-toggle]');
       if (t) { var k = t.getAttribute('data-sp-toggle'); spPane[k] = !spPane[k]; spMsg = ''; repaintSplit(); return; }

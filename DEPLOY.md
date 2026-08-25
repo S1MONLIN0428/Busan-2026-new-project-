@@ -1,40 +1,39 @@
-# Deploying to Koyeb
+# Deploying to Vercel
 
-This turns the itinerary into a small web service so the 分帳 tab can be edited
-by several people at once. Written assuming you have not used Neon or Koyeb
-before — every step is spelled out.
+This puts the itinerary online so the 分帳 tab can be edited by several people
+at once. Written assuming you have not used Neon or Vercel before.
 
-Total cost: nothing. Both free tiers are enough for a six-person trip ledger.
+Cost: nothing. Vercel's Hobby plan is free with **no credit card**, and Neon's
+free tier covers a ledger this size many times over.
 
 ---
 
 ## What you are setting up
 
 ```
-GitHub  ──push──▶  Koyeb  ──SQL──▶  Neon
- (code)            (runs it)        (stores the ledger)
+GitHub  ──push──▶  Vercel  ──SQL──▶  Neon
+ (code)            (runs it)         (stores the ledger)
 ```
 
-Three separate things, and it matters that they are separate:
-
-- **GitHub** holds the code. Pushing here is what triggers a redeploy.
-- **Koyeb** runs `server.js`, serves the page, and talks to the database.
+- **GitHub** holds the code. Pushing is what triggers a redeploy.
+- **Vercel** serves the page from its CDN and runs the three small functions in
+  `api/` that read and write the ledger.
 - **Neon** is the Postgres database where the ledger actually lives.
 
-The database has to be its own service because Koyeb's container has no durable
-disk: its free instance sleeps after an hour of no traffic and starts again from
-the image, so anything the server wrote to a file would be gone. Writes never
-travel back to GitHub either. Neon is the only part of this that remembers.
+The database is a separate service because Vercel functions are stateless —
+they start, answer one request, and vanish. Nothing written to their filesystem
+survives, and nothing ever travels back to GitHub. Neon is the only part that
+remembers.
 
 ---
 
-## Step 1 — Push the code to GitHub
+## Step 1 — The code is already on GitHub
 
-From the repo:
+Nothing to do if you pushed already. Otherwise:
 
 ```bash
 git add -A
-git commit -m "Add server and shared split-check ledger"
+git commit -m "Vercel deploy"
 git push -u origin main
 ```
 
@@ -42,149 +41,151 @@ git push -u origin main
 
 ## Step 2 — Create the Neon database
 
-1. Go to <https://neon.com> and sign up (GitHub login works; no card needed).
-2. Click **Create project**. Any name is fine — e.g. `busan`.
+1. Go to <https://neon.com> and sign up (GitHub login works, no card needed).
+2. **Create project**. Any name — e.g. `busan`.
 
-   **Match the region to Koyeb, not to yourself.** Koyeb's free instance can
-   only run in **Frankfurt** or **Washington, D.C.**, and every database query
-   is a server-to-server hop from there. Putting the database near you instead
-   of near Koyeb adds that distance to every single query. Your own distance to
-   Koyeb costs one request per page load, which barely matters by comparison.
+   **Match the region to Vercel, not to yourself.** Every query is a
+   server-to-server hop from Vercel's function, so the database belongs next to
+   Vercel. Your own distance costs one request per page load, which barely
+   matters by comparison. Vercel's default function region is
+   **Washington, D.C. (iad1)**, so unless you change it in step 3:
 
-   | Koyeb region chosen in step 3 | Neon region to pick |
+   | Vercel function region | Neon region |
    | --- | --- |
-   | Washington, D.C. | `AWS us-east-1` (N. Virginia) |
-   | Frankfurt | `AWS eu-central-1` (Frankfurt) |
+   | Washington, D.C. `iad1` (default) | `AWS us-east-1` |
+   | Frankfurt `fra1` | `AWS eu-central-1` |
+   | Singapore `sin1` | `AWS ap-southeast-1` |
 
-   A Neon project's region cannot be changed after creation. If you already made
-   one in the wrong region, just create a second project in the right one and
-   delete the first — there is nothing in it yet.
+   A Neon project's region cannot be changed later. If you already made one in
+   the wrong region, create a second and delete the first — there is nothing in
+   it yet.
 
-3. When the project opens you land on a **Connect** panel with a connection
-   string. Click the copy button. It looks like:
+3. On the **Connect** panel, copy the connection string. Use the **pooled** one
+   — the hostname contains `-pooler`. That matters here: it routes through
+   Neon's PgBouncer, which is what lets many short-lived serverless functions
+   share a small set of real Postgres connections instead of exhausting them.
 
    ```
-   postgresql://neondb_owner:npg_AbCd1234@ep-cool-name-a1b2c3-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require
+   postgresql://neondb_owner:npg_xxxx@ep-cool-name-a1b2c3-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require
    ```
 
-   If you closed the panel: **Dashboard → Connect** re-opens it.
+4. **Treat that string as a password.** It grants full access to the database.
+   Do not commit it, and do not paste it into a chat. It is not in this repo and
+   must not be added to it.
 
-4. Keep that string somewhere for the next step. **Treat it as a password** —
-   it grants full access to the database. Do not commit it or paste it into a
-   chat. It is not in this repo and must not be added to it.
-
-> There is nothing to create inside the database. The server creates its own
-> `ledgers` table on first start.
+> There is nothing to create inside the database. The first request creates the
+> `ledgers` table itself.
 
 ---
 
-## Step 3 — Create the Koyeb service
+## Step 3 — Create the Vercel project
 
-1. Go to <https://app.koyeb.com> and sign up.
-2. **Create Service → GitHub**, authorise Koyeb, and pick this repository.
-   Branch `main`.
-3. Koyeb detects Node automatically and will run `npm start`. Leave the builder
-   as **Buildpack**; you do not need the Dockerfile option.
-4. **Instance type**: `Free`. **Region**: Frankfurt or Washington, D.C. — those
-   are the only two the free instance runs in, and this must match the Neon
-   region from step 2.
+1. Go to <https://vercel.com> and sign up with GitHub.
+2. **Add New → Project**, then import `Busan-2026-new-project-`.
+3. Framework preset: **Other**. Leave the build settings alone — `vercel.json`
+   already specifies the build command and output directory.
+4. Expand **Environment Variables** and add:
 
-   > An empty Koyeb dashboard just means no service exists yet — there is
-   > nothing to repair, only the wizard to finish. Two things that stop people
-   > here: Koyeb may ask for a card to prove you are not a bot (it authorises
-   > $29 and voids it immediately — the free instance itself is not charged),
-   > and each **organization** gets exactly one free instance, so if the
-   > org-switcher at the top-left is on an org that already has one, the Free
-   > option will be unavailable there.
-5. **Environment variables** — click *Add variable*:
+   | Key | Value |
+   | --- | --- |
+   | `DATABASE_URL` | the pooled Neon string from step 2 |
 
-   | Name           | Type   | Value                                  |
-   | -------------- | ------ | -------------------------------------- |
-   | `DATABASE_URL` | Secret | the Neon string you copied in step 2   |
+   Leave it applied to all three environments. Do **not** add a `PORT`.
 
-   Choose the **Secret** type, not Plain, so the value is not shown in logs or
-   the build output.
+5. **Deploy.**
 
-   Do **not** set `PORT`. Koyeb provides it and the server reads it.
+That's it — there is no instance to size, no region to pick for the site
+itself, and nothing that sleeps.
 
-6. **Health check**: set the HTTP path to `/healthz`. (Optional but useful —
-   it reports whether the database actually connected.)
-7. Click **Deploy** and wait for the build to go green.
+> If you would rather not manage the connection string by hand, Vercel can
+> create and wire up a Neon database for you: project → **Storage** → **Neon**.
+> It sets `DATABASE_URL` automatically. Use either approach, not both.
+
+### Changing the function region (optional)
+
+Project → **Settings** → **Functions** → **Function Region**. Only worth doing
+if you put Neon somewhere other than `us-east-1`; they should match.
 
 ---
 
 ## Step 4 — Check it worked
 
-Open `https://<your-app>.koyeb.app/healthz`. You want:
+Open `https://<your-project>.vercel.app/healthz`:
 
 ```json
 {"ok":true,"db":true}
 ```
 
-- `"db":true` — connected to Neon, sharing works.
-- `"db":false` — `DATABASE_URL` is missing or wrong. The itinerary still serves
-  and the 分帳 tab still works locally, but the 建立共用帳本 button will report
-  that sharing is unavailable. Check the service logs and the variable.
+- `"db":true` — connected to Neon. Sharing works.
+- `"db":false` — the response includes a `reason`. The itinerary still serves
+  and the 分帳 tab still works as a local book; only sharing is off. Usually the
+  `DATABASE_URL` is missing, or was pasted with a stray space or quote.
 
 ---
 
 ## Step 5 — Start a shared ledger
 
-1. Open the site, go to the **分帳** tab.
+1. Open the site and go to the **分帳** tab.
 2. Tap **建立共用帳本**. The page moves to a URL like
-   `https://<your-app>.koyeb.app/g/V1okENA99cYCgMf-dLHwLw`, carrying over
+   `https://<your-project>.vercel.app/g/V1okENA99cYCgMf-dLHwLw`, carrying over
    whatever was already in your local book.
-3. Tap **複製連結** and send that link to the others. Anyone who opens it is
-   editing the same ledger.
+3. Tap **複製連結** and send it to the others. Anyone who opens it edits the
+   same ledger.
 
-Changes show up on other phones within a few seconds. The status line under the
-rate reads 共用中 · 同步於 HH:MM when synced.
+Changes appear on other phones within a few seconds.
 
 ---
 
 ## How the sharing behaves
 
-**Access.** The link is the only key — 128 bits of randomness, not guessable —
-so anyone holding it can read and edit the ledger, and anyone without it cannot
-find it. Treat the link like the ledger itself. There is no separate password,
-which was the deliberate choice: it matches how Lightsplit group links work.
+**Access.** The link is the only key — 128 bits of randomness, not guessable.
+Anyone holding it can read and edit; anyone without it cannot find the ledger.
+Treat the link as the ledger itself. There is no separate password, which was
+the deliberate choice: it matches how Lightsplit group links work.
 
 **Concurrent edits.** Each phone sends only the entries it changed itself, so
 two people adding different expenses at the same moment both land. If two people
 edit *the same* expense, the later save wins — the server decides the order, so
 a phone with a wrong clock cannot reorder anything.
 
-**Offline.** Edits made with no signal are kept on the phone and pushed
-automatically when the connection returns; the status line says
-離線 · 已存本機，恢復後自動同步 meanwhile. Nothing is lost and nothing blocks.
+**Offline.** Edits made with no signal are kept and pushed automatically when
+the connection returns; the status line reads 離線 · 已存本機，恢復後自動同步
+meanwhile. Nothing is lost and nothing blocks.
 
 **Typing.** An update arriving from someone else never steals the field you are
-typing in — the refresh is held until you leave it.
+typing in — the refresh waits until you leave it.
 
-**Without a share link**, the tab behaves exactly as it always did: the book
-lives in that one browser only. Opening `index.html` straight off disk still
-works completely offline.
+**Without a share link**, the tab behaves as it always did: the book lives in
+that one browser. Opening `project/uploads/index.html` straight off disk still
+works with no server at all.
 
 ---
 
-## First load is slow, and that's expected
+## Usage, and why the page does not poll constantly
 
-Both free tiers sleep when idle:
+Hobby gives 1,000,000 function invocations a month. Each sync check is one
+invocation, so the page varies its rate by what is actually happening:
 
-- Koyeb's free instance sleeps after **1 hour** without traffic; the next
-  request cold-starts in 1–5 seconds.
-- Neon's free compute sleeps after **5 minutes** idle and wakes on the next
-  query.
+| Situation | Rate | Per open tab |
+| --- | --- | --- |
+| 分帳 in front, just edited | every 4s | ~960/hour |
+| 分帳 in front, quiet 2–10 min | every 10s | ~360/hour |
+| 分帳 in front, quiet >10 min | every 30s | ~120/hour |
+| Another tab in front | every 30s | ~120/hour |
+| Tab hidden or phone locked | stopped | 0 |
 
-So the first open after a quiet spell can take a few seconds. Everything after
-that is fast. Neither can be disabled on the free plans.
+Six people settling up for an hour is under 6,000 invocations. Even a tab left
+open and forgotten settles to ~2,900/day. You are unlikely to get close to the
+limit.
+
+Hobby is for non-commercial personal use, which a private trip itinerary is.
 
 ---
 
 ## Redeploying
 
-Push to `main`. Koyeb rebuilds automatically. The ledger is untouched by
-deploys — it is in Neon, not in the container.
+Push to `main`. Vercel rebuilds automatically. The ledger is untouched by
+deploys — it lives in Neon, not in the deployment.
 
 ---
 
@@ -192,9 +193,13 @@ deploys — it is in Neon, not in the container.
 
 ```bash
 npm install
-DATABASE_URL='postgresql://...' PORT=8000 npm start
-# then open http://localhost:8000
+DATABASE_URL='postgresql://...' npm start   # http://localhost:8000
 ```
+
+`server.js` is a plain Node server that serves the same page and the same API.
+It is what the project used before Vercel, it is handy for local work, and it
+will run on any host that can keep a Node process alive. Vercel does not use it
+— there the `api/` functions do the same job.
 
 Without `DATABASE_URL` the server still starts and serves the itinerary; only
 sharing is switched off.
@@ -203,23 +208,14 @@ sharing is switched off.
 
 ## Limits worth knowing
 
-| Thing | Limit | Why |
-| --- | --- | --- |
-| Members per ledger | 24 | |
-| Expenses per ledger | 500 | |
-| Name / title length | 60 characters | truncated, not rejected |
-| Request body | 512 KB | |
-| Ledger reads | 400/min per IP | a leaked link cannot hammer the database |
-| Ledger writes | 200/min per IP | |
-| New ledgers | 10/min per IP | |
+| Thing | Limit |
+| --- | --- |
+| Members per ledger | 24 |
+| Expenses per ledger | 500 |
+| Name / title length | 60 characters (truncated, not rejected) |
+| Request body | 512 KB |
 
-Rate-limited requests make the page show 離線 briefly; it retries on its own.
-
----
-
-## Note on the `project/vercel/` folder
-
-That folder is an **older copy of the page from before the 分帳 tab existed**,
-left over from an earlier deployment plan. Koyeb serves
-`project/uploads/index.html` directly, so `project/vercel/` is not used by any
-of this and is now misleading. Delete it when you are sure you don't want it.
+Ledger reads and writes are also rate limited per IP, but on Vercel that is
+best-effort only: each function instance counts separately, so it catches a
+burst rather than enforcing a global ceiling. The unguessable link and Vercel's
+own DDoS protection are what actually stand in front of the API.

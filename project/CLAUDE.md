@@ -18,9 +18,21 @@ The 分帳 tab runs in one of two modes, decided by the URL:
 - plain URL or `file://` — local book, `localStorage` only, as before
 - `/g/<id>` — shared book on the server, edited by everyone holding the link
 
-Server code lives at the repo root (`server.js`, `db.js`) and serves
-`uploads/index.html` directly; there is no build step and no copy of the page.
-Storage is Postgres (Neon) — see `DEPLOY.md` at the repo root.
+Production is Vercel: the `api/` functions at the repo root handle the ledger,
+and `build.js` copies this page plus its fonts into a gitignored `public/`.
+`server.js` is the same thing as a single always-on Node process — useful
+locally and on any non-serverless host. Both go through `db.js`, so they behave
+identically. Storage is Postgres (Neon) — see `DEPLOY.md` at the repo root.
+
+Because assets are referenced relatively, a share link needs three route
+rewrites, not one: `/g/<id>` serves the page, and both `/g/fonts/*` (no
+trailing slash on the link) and `/g/<id>/fonts/*` (trailing slash) must map
+back to the real fonts. These live in `vercel.json`, mirrored in `server.js`.
+
+Polling rate is deliberate, not arbitrary: each check is a billed Vercel
+invocation, so `spPollPeriod()` backs off from 4s to 30s as the book goes quiet
+and `spTick()` stops altogether when the tab is hidden. `spTouch()` resets it —
+call it from anything that should make sync responsive again.
 
 Sync model: a client pushes only the records it changed itself, so concurrent
 edits to *different* expenses both survive and only same-record edits resolve

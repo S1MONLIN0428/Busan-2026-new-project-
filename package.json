@@ -8,9 +8,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "node build.js"
   },
   "dependencies": {
+    "@vercel/functions": "^2.0.0",
     "pg": "^8.13.1"
   }
 }
