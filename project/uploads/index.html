@@ -1462,7 +1462,7 @@
     var el = track && track.querySelector('[data-sp-sync]');
     if (!el) return;
     el.textContent = spSyncText();
-    el.style.color = spNet.state === 'offline' ? '#a8532c' : '#8a8378';
+    el.style.color = (spNet.state === 'offline' || spNet.state === 'nodb') ? '#a8532c' : '#8a8378';
   }
 
   // A remote change must never yank the field somebody is typing in. When it
@@ -1684,13 +1684,6 @@
           '<span style="font-size: 11px; letter-spacing: 0.1em; color: #8a8378;">分帳匯率 ₩1 = NT$' + (Math.round(RATE * 10000) / 10000) + (rateDate ? ' · 更新於 ' + esc(rateDate) : '') + '</span>' +
           '<span style="flex: 1; height: 1px; background: #ddd8ce;"></span>' +
         '</div>' +
-        '<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">' +
-          '<span data-sp-sync="" style="font-size: 11px; letter-spacing: 0.1em; color: ' + (spNet.state === 'offline' ? '#a8532c' : '#8a8378') + ';">' + esc(spSyncText()) + '</span>' +
-          '<span style="flex: 1; height: 1px; background: #ddd8ce;"></span>' +
-          (SP_GROUP
-            ? '<button type="button" data-sp-copy-link="" style="border: 1px solid #cfc8bb; background: transparent; color: #3d3831; border-radius: 999px; padding: 5px 12px; font-family: inherit; font-size: 12px; cursor: pointer;">複製連結</button>'
-            : '') +
-        '</div>' +
         (spMsg ? '<div class="addr" style="font-size: 12px; color: #a8532c; line-height: 1.5;">' + esc(spMsg) + '</div>' : '') +
         '<div style="display: flex; flex-direction: column;">' +
           spSectionHead('成員', sp.members.length + ' 人', 'members', spPane.members) +
@@ -1713,6 +1706,9 @@
           '<div style="font-size: 11px; letter-spacing: 0.14em; color: #8a8378; border-bottom: 1px solid #23201c; padding-bottom: 12px;">最少轉帳次數</div>' +
           spSettlePane() +
         '</div>' +
+        // Sync state is reassurance, not something to act on, so it sits at the
+        // foot of the panel rather than between the figures and the ledger.
+        '<div data-sp-sync="" style="font-size: 11px; letter-spacing: 0.1em; color: ' + (spNet.state === 'offline' || spNet.state === 'nodb' ? '#a8532c' : '#8a8378') + '; padding-top: 4px;">' + esc(spSyncText()) + '</div>' +
       '</div>';
   }
 
@@ -1744,22 +1740,6 @@
 
       t = ev.target.closest('[data-sp-toggle]');
       if (t) { var k = t.getAttribute('data-sp-toggle'); spPane[k] = !spPane[k]; spMsg = ''; repaintSplit(); return; }
-
-      t = ev.target.closest('[data-sp-copy-link]');
-      if (t) {
-        var link = location.href;
-        var done = function () { spMsg = '連結已複製，傳給同行的人就能一起記帳。'; repaintSplit(); };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(link).then(done, function () {
-            spMsg = link;
-            repaintSplit();
-          });
-        } else {
-          spMsg = link;
-          repaintSplit();
-        }
-        return;
-      }
 
       t = ev.target.closest('[data-sp-new]');
       if (t) { spDraft = spNewDraft(); spMsg = ''; repaintSplit(); return; }
