@@ -30,12 +30,17 @@ Amount fields must never use `inputmode="none"` — that is only correct for the
 `data-fx` fields in 換算, which are `readonly` and driven by the page's own
 keypad. Anywhere else it leaves a phone with no keyboard at all.
 
-Production is Vercel and nothing else: the `api/` functions at the repo root
-handle the ledger through `db.js`, and `build.js` copies this page plus its
-fonts into a gitignored `public/`. Storage is Postgres (Neon), reached via
-`DATABASE_URL` (the pooled `-pooler` connection string) set on the Vercel
-project. There is no local server — open this file off disk to work on the page
-itself, which exercises everything except sharing.
+Production is Vercel, and `server.js` at the repo root IS the deployment:
+Vercel finds a server file in the project root and runs it as a live HTTP
+server, so it serves both this page and the ledger API through `db.js`.
+Removing it, or `package.json`'s `"main"`, fails the build with
+`No entrypoint found` — that has already happened once. `build.js` copies this
+page plus its fonts into a gitignored `public/` for the static rewrites.
+Storage is Postgres (Neon) via `DATABASE_URL` (the pooled `-pooler` string)
+set on the Vercel project.
+
+`server.js` also runs locally with `npm start`, and this page opens straight
+off disk with no server at all — that exercises everything except sharing.
 
 Because assets are referenced relatively, a share link needs three route
 rewrites, not one: `/g/<id>` serves the page, and both `/g/fonts/*` (no

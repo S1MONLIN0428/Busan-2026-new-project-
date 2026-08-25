@@ -6,11 +6,10 @@ several people can edit at the same time.
 ## Layout
 
 ```
-api/                    Vercel functions — what runs in production
-  ledger/index.js         POST /api/ledger        create a ledger
-  ledger/[id].js          GET|POST /api/ledger/:id  read / apply a delta
-  healthz.js              GET /healthz            is the database reachable
-  _lib.js                 shared HTTP helpers
+server.js               the whole server: serves the page and the ledger API
+                        POST /api/ledger          create a ledger
+                        GET|POST /api/ledger/:id  read / apply a delta
+                        GET /healthz              is the database reachable
 db.js                   Postgres storage and the concurrent-edit merge
 build.js                copies the page + fonts into public/ for Vercel
 vercel.json             build settings and the /g/<id> rewrites
@@ -18,6 +17,11 @@ project/uploads/
   index.html            the itinerary — the only page, hand-written
   fonts/                self-hosted Noto Serif (Latin / TC / KR)
 ```
+
+`server.js` is the deployment's entrypoint, not a dev convenience: Vercel looks
+for a server file in the project root and runs it as a live HTTP server. Renaming
+or removing it breaks the build with `No entrypoint found`, and `package.json`'s
+`"main"` must keep pointing at it.
 
 `project/uploads/index.html` is canonical. `build.js` copies it into `public/`
 at deploy time, and `public/` is gitignored — so there is never a second copy of
