@@ -14,6 +14,15 @@
 
 const { Pool } = require('pg');
 
+// The book the site opens on. Visiting the site is enough to be editing it
+// together — there is nothing to create and no link to pass round first. It is
+// created on first use and is otherwise an ordinary ledger; /g/<id> links still
+// work for anyone who wants a second, separate book.
+//
+// Consequence worth being deliberate about: for this one ledger the site's own
+// address is the key, rather than an unguessable link.
+const DEFAULT_LEDGER_ID = 'busan-2026-shared-ledger';
+
 const MAX_MEMBERS = 24;
 const MAX_EXPENSES = 500;
 const MAX_TEXT = 60;
@@ -208,6 +217,21 @@ async function createLedger(id, seed) {
   return materialise(id, version, doc);
 }
 
+// Creates the ledger if it is not there yet, then returns it. Racing callers
+// are fine: whoever loses the insert falls through to the select. Only ever
+// called for DEFAULT_LEDGER_ID, so a stranger cannot fill the table by asking
+// for ids that do not exist.
+async function ensureLedger(id) {
+  const p = getPool();
+  await p.query(
+    `insert into ledgers (id, version, doc)
+     values ($1, 1, '{"members":{},"expenses":{}}'::jsonb)
+     on conflict (id) do nothing`,
+    [id]
+  );
+  return getLedger(id);
+}
+
 // Applies one client's delta. Runs inside a transaction with the row locked, so
 // two simultaneous pushes serialise instead of overwriting each other.
 async function applyDelta(id, delta) {
@@ -273,6 +297,6 @@ async function applyDelta(id, delta) {
 }
 
 module.exports = {
-  init, ensureReady, isConfigured, getLedger, createLedger, applyDelta,
-  MAX_MEMBERS, MAX_EXPENSES,
+  init, ensureReady, isConfigured, getLedger, createLedger, ensureLedger, applyDelta,
+  DEFAULT_LEDGER_ID, MAX_MEMBERS, MAX_EXPENSES,
 };

@@ -123,25 +123,35 @@ Open `https://<your-project>.vercel.app/healthz`:
 
 ---
 
-## Step 5 — Start a shared ledger
+## Step 5 — Use it
 
-1. Open the site and go to the **分帳** tab.
-2. Tap **建立共用帳本**. The page moves to a URL like
-   `https://<your-project>.vercel.app/g/V1okENA99cYCgMf-dLHwLw`, carrying over
-   whatever was already in your local book.
-3. Tap **複製連結** and send it to the others. Anyone who opens it edits the
-   same ledger.
+There is no setup step. Open the site, go to the **分帳** tab, and you are
+already in the shared book. Send anyone the site address and they are editing
+the same one — no link to generate, nothing to press first.
 
 Changes appear on other phones within a few seconds.
+
+**複製連結** is there only to save you typing the address out.
 
 ---
 
 ## How the sharing behaves
 
-**Access.** The link is the only key — 128 bits of randomness, not guessable.
-Anyone holding it can read and edit; anyone without it cannot find the ledger.
-Treat the link as the ledger itself. There is no separate password, which was
-the deliberate choice: it matches how Lightsplit group links work.
+**Access.** For the shared book everyone lands on, the site's own address is the
+key: anyone who can reach the site can read and edit it. That is the trade for
+having it work with no setup, and for a private trip ledger among friends it is
+usually the right trade — but it does mean the address is worth keeping to the
+group rather than posting publicly.
+
+If you ever want a book that is *not* reachable that way, `/g/<id>` links still
+work and are separate ledgers with their own contents. One can be created with:
+
+```bash
+curl -X POST https://<your-project>.vercel.app/api/ledger
+```
+
+which returns an `id`; open `/g/<that-id>`. Those ids are 128 bits of
+randomness, so the link itself is the key and cannot be guessed.
 
 **Concurrent edits.** Each phone sends only the entries it changed itself, so
 two people adding different expenses at the same moment both land. If two people

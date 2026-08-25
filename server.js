@@ -129,9 +129,15 @@ async function handleApi(req, res, url) {
   const id = decodeURIComponent(m[1]);
   if (!validGroupId(id)) return sendJson(res, 400, { error: 'bad-id' });
 
+  // The default ledger is created on first touch — see db.DEFAULT_LEDGER_ID.
+  // Every other id must already exist, so nobody can fill the table by asking
+  // for ids at random.
+  const isDefault = id === db.DEFAULT_LEDGER_ID;
+
   if (req.method === 'GET') {
     if (rateLimited(req, 400, 60000)) return sendJson(res, 429, { error: 'slow-down' });
-    const out = await db.getLedger(id);
+    let out = await db.getLedger(id);
+    if (!out && isDefault) out = await db.ensureLedger(id);
     if (!out) return sendJson(res, 404, { error: 'not-found' });
     return sendJson(res, 200, out);
   }
@@ -139,7 +145,11 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' || req.method === 'PUT') {
     if (rateLimited(req, 200, 60000)) return sendJson(res, 429, { error: 'slow-down' });
     const body = await readBody(req);
-    const out = await db.applyDelta(id, body || {});
+    let out = await db.applyDelta(id, body || {});
+    if (!out && isDefault) {
+      await db.ensureLedger(id);
+      out = await db.applyDelta(id, body || {});
+    }
     if (!out) return sendJson(res, 404, { error: 'not-found' });
     return sendJson(res, 200, out);
   }

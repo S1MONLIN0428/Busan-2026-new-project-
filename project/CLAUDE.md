@@ -13,10 +13,22 @@ are relative for exactly this reason (the server answers the `/g/<id>` variants
 rather than the page using absolute paths).
 
 ## Shared split-check ledger
-The 分帳 tab runs in one of two modes, decided by the URL:
+The 分帳 tab runs in one of three modes, decided by the URL:
 
-- plain URL or `file://` — local book, `localStorage` only, as before
-- `/g/<id>` — shared book on the server, edited by everyone holding the link
+- plain URL over http(s) — the default shared book (`DEFAULT_LEDGER_ID` in
+  `db.js`, mirrored as `SP_DEFAULT` in the page; the two must match). Shared
+  from first paint, with no create step, because that is what people expect
+  from a link someone sent them.
+- `/g/<id>` — a separate shared book, reachable only by its unguessable link
+- `file://` — no origin to talk to, so local `localStorage` book as before
+
+The default ledger is created on first touch, on both the read and the write
+path (a client can push before its first read lands). Every other id must
+already exist, so nobody can fill the table by requesting random ids.
+
+Amount fields must never use `inputmode="none"` — that is only correct for the
+`data-fx` fields in 換算, which are `readonly` and driven by the page's own
+keypad. Anywhere else it leaves a phone with no keyboard at all.
 
 Production is Vercel: the `api/` functions at the repo root handle the ledger,
 and `build.js` copies this page plus its fonts into a gitignored `public/`.

@@ -1067,12 +1067,17 @@
   // when the connection comes back, so the panel never blocks on the network.
   var SPLIT_KEY = 'busan-split-v1';
   var SP_SEED = ['A', 'B', 'C', 'D', 'E', 'F'];
-  var SP_GROUP = (function () {
-    var m = String(location.pathname || '').match(/^\/g\/([A-Za-z0-9_-]{16,40})$/);
-    return m ? m[1] : null;
-  }());
   // Sharing needs an origin to talk to; a page opened as file:// has none.
   var SP_CAN_SHARE = /^https?:$/.test(location.protocol) && typeof fetch === 'function';
+  // Must match DEFAULT_LEDGER_ID in db.js.
+  var SP_DEFAULT = 'busan-2026-shared-ledger';
+  var SP_GROUP = (function () {
+    var m = String(location.pathname || '').match(/^\/g\/([A-Za-z0-9_-]{16,40})$/);
+    if (m) return m[1];
+    // Served over http(s), so the book everyone shares is already the one in
+    // front of you. No button to press, nothing to create, no second tab.
+    return SP_CAN_SHARE ? SP_DEFAULT : null;
+  }());
   function spStoreKey() { return SP_GROUP ? 'busan-split-g-' + SP_GROUP : SPLIT_KEY; }
 
   var sp = { members: [], expenses: [] };
@@ -1347,10 +1352,19 @@
 
   function spFail(err) {
     spInFlight = false;
+    var msg = String(err && err.message);
+    // 503 is the server telling us it has no database — a setup problem, not a
+    // network one, and worth saying so rather than looking like a dropped signal.
+    if (msg.indexOf('503') >= 0) {
+      spNet.state = 'nodb';
+      spCacheSave();
+      spSyncLine();
+      return;
+    }
     spNet.state = 'offline';
     spCacheSave();
     spSyncLine();
-    if (String(err && err.message).indexOf('404') >= 0) {
+    if (msg.indexOf('404') >= 0) {
       spMsg = '找不到這本帳本，連結可能已失效。';
       spRepaintSafe();
     }
@@ -1430,8 +1444,10 @@
   }
 
   function spSyncText() {
-    if (!SP_GROUP) return SP_CAN_SHARE ? '本機模式 · 只存在這台裝置' : '本機模式';
+    // Only ever reached from file:// now — over http the book is always shared.
+    if (!SP_GROUP) return '本機模式 · 只存在這台裝置';
     if (spNet.state === 'loading') return '連線中…';
+    if (spNet.state === 'nodb') return '伺服器尚未連上資料庫 · 暫存本機';
     if (spNet.state === 'offline') return '離線 · 已存本機，恢復後自動同步';
     if (spNet.state === 'ok') {
       var d = new Date(spNet.at);
@@ -1561,7 +1577,7 @@
         '<div style="display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #ddd8ce; padding-bottom: 8px;">' +
           '<div style="display: flex; align-items: baseline; gap: 8px;">' +
             '<span style="font-size: 19px; color: #8a8378;">₩</span>' +
-            '<input type="text" inputmode="none" data-sp-f="won" value="' + esc(d.won) + '" placeholder="0" style="flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-family: inherit; font-size: 22px; font-weight: 600; color: #23201c; padding: 0;" />' +
+            '<input type="text" inputmode="decimal" data-sp-f="won" value="' + esc(d.won) + '" placeholder="0" style="flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-family: inherit; font-size: 22px; font-weight: 600; color: #23201c; padding: 0;" />' +
           '</div>' +
           '<div data-sp-won-echo="" style="min-height: 14px; font-size: 12px; color: #8a8378;">' + esc(wonVal ? '≈ ' + spNt(wonVal) : '') + '</div>' +
         '</div>' +
@@ -1671,9 +1687,9 @@
         '<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">' +
           '<span data-sp-sync="" style="font-size: 11px; letter-spacing: 0.1em; color: ' + (spNet.state === 'offline' ? '#a8532c' : '#8a8378') + ';">' + esc(spSyncText()) + '</span>' +
           '<span style="flex: 1; height: 1px; background: #ddd8ce;"></span>' +
-          (!SP_CAN_SHARE ? '' : SP_GROUP
+          (SP_GROUP
             ? '<button type="button" data-sp-copy-link="" style="border: 1px solid #cfc8bb; background: transparent; color: #3d3831; border-radius: 999px; padding: 5px 12px; font-family: inherit; font-size: 12px; cursor: pointer;">複製連結</button>'
-            : '<button type="button" data-sp-share-create="" style="border: 1px solid ' + ACCENT + '; background: ' + ACCENT + '; color: #f8f0df; border-radius: 999px; padding: 5px 12px; font-family: inherit; font-size: 12px; cursor: pointer;">建立共用帳本</button>') +
+            : '') +
         '</div>' +
         (spMsg ? '<div class="addr" style="font-size: 12px; color: #a8532c; line-height: 1.5;">' + esc(spMsg) + '</div>' : '') +
         '<div style="display: flex; flex-direction: column;">' +
@@ -1728,27 +1744,6 @@
 
       t = ev.target.closest('[data-sp-toggle]');
       if (t) { var k = t.getAttribute('data-sp-toggle'); spPane[k] = !spPane[k]; spMsg = ''; repaintSplit(); return; }
-
-      // Hands the current local book to the server and moves this device onto
-      // the shared copy. Everyone else joins by opening the link.
-      t = ev.target.closest('[data-sp-share-create]');
-      if (t) {
-        if (t.disabled) return;
-        t.disabled = true;
-        t.textContent = '建立中…';
-        spApi('/api/ledger', {
-          method: 'POST',
-          body: JSON.stringify({ seed: { members: sp.members, expenses: sp.expenses } }),
-        }).then(function (doc) {
-          location.href = '/g/' + doc.id;
-        }).catch(function (err) {
-          spMsg = String(err && err.message).indexOf('503') >= 0
-            ? '這台伺服器還沒有接上資料庫，暫時無法共用。'
-            : '建立失敗，請稍後再試。';
-          repaintSplit();
-        });
-        return;
-      }
 
       t = ev.target.closest('[data-sp-copy-link]');
       if (t) {

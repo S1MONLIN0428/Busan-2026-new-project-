@@ -41,15 +41,14 @@ server at all — asset paths are relative so that this keeps working.
 
 ## The 分帳 tab
 
-Two modes, decided by the URL:
+Served over http(s) the tab is shared from the moment it opens — no button, no
+link to generate. Everyone who reaches the site is editing the same book.
 
-- **plain URL or `file://`** — the book lives in that one browser
+- **the site itself** — the default shared ledger, created on first use
+- **`/g/<id>`** — a separate shared ledger, reachable only by its unguessable
+  link (`POST /api/ledger` returns a new one)
+- **`file://`** — no server to talk to, so the book stays in that one browser
   (`localStorage`), exactly as it always did
-- **`/g/<id>`** — the book lives on the server and everyone holding the link
-  edits it together
-
-Tap **建立共用帳本** to turn a local book into a shared one; it carries over what
-you already had and hands you a link.
 
 Each client pushes only the records it changed itself, so two people adding
 different expenses at the same moment both survive; only edits to the same
@@ -57,7 +56,8 @@ expense resolve last-write-wins, ordered by the server rather than by client
 clocks. Edits made offline are kept and pushed on reconnect, and an update
 arriving from someone else never steals the field you are typing in.
 
-Access is by unguessable link alone — treat the link as the ledger itself.
+For the default book the site's address is the key; for a `/g/<id>` book the
+link is. Neither has a separate password.
 
 ## Deploying
 
