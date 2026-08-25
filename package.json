@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "description": "Busan 2026 itinerary with a collaboratively edited split-check ledger",
+  "main": "server.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "start": "node server.js",
     "build": "node build.js"
   },
   "dependencies": {
