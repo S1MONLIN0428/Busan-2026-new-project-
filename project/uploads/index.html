@@ -1600,7 +1600,7 @@
 
   function spListPane() {
     if (!sp.expenses.length) {
-      return '<div class="addr" style="font-size: 13px; color: #8a8378; line-height: 1.6; padding: 4px 0 2px;">還沒有支出。付錢的人記一筆，其他人不用做任何事。</div>';
+      return '<div class="addr" style="font-size: 13px; color: #8a8378; line-height: 1.6; padding: 4px 0 2px;">還沒有支出。</div>';
     }
     return sp.expenses.map(function (e) {
       var n = Object.keys(e.parts).filter(function (id) { return spMember(id) && e.parts[id] > 0; }).length;
