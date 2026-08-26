@@ -1931,7 +1931,6 @@
           [
             dExp ? (dExp.title || '未命名') + ' · ' + won(dExp.won) : '',
             dExp ? dNames + ' 付 · ' + spModeLabel(dExp.mode) + ' · ' + dCount + ' 人分攤' : '',
-            SP_GROUP ? '這本帳本是共用的，其他人也會少掉這一筆。' : '',
           ],
           function () {
             sp.expenses = sp.expenses.filter(function (e) { return e.id !== did; });
