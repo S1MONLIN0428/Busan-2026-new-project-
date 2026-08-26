@@ -43,7 +43,7 @@
   [data-check] { transition: background-color 200ms var(--t), border-color 200ms var(--t), transform 220ms var(--e); }
   [data-check]:active { transform: scale(0.88); }
   [data-time], [data-name] { transition: color 260ms var(--t); }
-  [data-subs-caret], [data-day-caret], [data-pack-caret] {
+  [data-subs-caret], [data-day-caret], [data-pack-caret], [data-sp-caret] {
     transition: transform 320ms var(--e);
     display: inline-flex; align-items: center; justify-content: center;
     width: 12px; height: 12px; line-height: 1;
@@ -52,7 +52,7 @@
   /* The collapsible bodies animate their own max-height in script. The content
      slides down from a few px up as it fades, so the reveal has a direction; the
      fade is shorter so it lands before the box stops growing. */
-  [data-subs], [data-day-list], [data-pack-list] {
+  [data-subs], [data-day-list], [data-pack-list], [data-sp-pane] {
     overflow: hidden;
     transition: max-height 340ms var(--e), opacity 200ms var(--t), transform 340ms var(--e);
   }
@@ -1561,8 +1561,10 @@
     return '<button type="button" ' + attr + '="' + esc(id) + '" style="border: 1px solid ' + (on ? ACCENT : '#cfc8bb') + '; background: ' + (on ? ACCENT : 'transparent') + '; color: ' + (on ? '#f8f0df' : '#3d3831') + '; border-radius: 999px; padding: 5px 11px; font-size: 12px; font-family: inherit; line-height: 1.3; cursor: pointer;">' + esc(label) + '</button>';
   }
 
+  // Rendered whether open or closed, like every other collapsible on the page:
+  // the box has to already be there for its max-height to animate. Leaving it
+  // out when closed is what made this one snap open while the rest glide.
   function spMembersPane() {
-    if (!spPane.members) return '';
     var rows = sp.members.map(function (m) {
       return '' +
         '<div style="display: grid; grid-template-columns: 1fr 20px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #e7e3da;">' +
@@ -1571,7 +1573,7 @@
         '</div>';
     }).join('');
     return '' +
-      '<div style="display: flex; flex-direction: column;">' + rows +
+      '<div data-sp-pane="members" style="display: ' + (spPane.members ? 'flex' : 'none') + '; flex-direction: column;">' + rows +
         '<div style="display: grid; grid-template-columns: 1fr; padding: 8px 0 0;">' +
           '<input type="text" data-sp-add-member="" placeholder="新增成員" style="border: 0; background: transparent; outline: none; font-family: inherit; font-size: 15px; color: #23201c; padding: 0;" />' +
         '</div>' +
@@ -1733,7 +1735,7 @@
       '<button type="button" data-sp-toggle="' + key + '" style="width: 100%; border: 0; background: none; padding: 12px 0; display: flex; align-items: baseline; gap: 10px; cursor: pointer; text-align: left; border-bottom: 1px solid #23201c;">' +
         '<span style="font-size: 11px; letter-spacing: 0.14em; color: #8a8378; flex: 1;">' + esc(label) + '</span>' +
         '<span style="font-size: 11px; color: #8a8378;">' + esc(right) + '</span>' +
-        '<span style="font-size: 11px; color: #8a8378; display: inline-flex; width: 12px; height: 12px; align-items: center; justify-content: center; transform: rotate(' + (open ? '45deg' : '0deg') + ');">+</span>' +
+        '<span data-sp-caret="' + key + '" style="font-size: 11px; color: #8a8378; transform: rotate(' + (open ? '45deg' : '0deg') + ');">+</span>' +
       '</button>';
   }
 
@@ -1810,8 +1812,21 @@
       // the taps have not changed anything yet.
       if (ev.target.closest && ev.target.closest('[data-split-body]')) spTouch();
 
+      // Animate in place rather than repainting, so this opens exactly the way
+      // the day, packing and sub-list sections do — same helper, same easing.
+      // spPane keeps the state so a later repaint renders it open or closed.
       t = ev.target.closest('[data-sp-toggle]');
-      if (t) { var k = t.getAttribute('data-sp-toggle'); spPane[k] = !spPane[k]; spMsg = ''; repaintSplit(); return; }
+      if (t) {
+        var k = t.getAttribute('data-sp-toggle');
+        var pane = track.querySelector('[data-sp-pane="' + k + '"]');
+        var kCaret = track.querySelector('[data-sp-caret="' + k + '"]');
+        if (!pane) { spPane[k] = !spPane[k]; repaintSplit(); return; }
+        var kOpen = pane.style.display === 'none';
+        spPane[k] = kOpen;
+        toggleBoxAndFit(pane, kOpen);
+        if (kCaret) kCaret.style.transform = kOpen ? 'rotate(45deg)' : 'rotate(0deg)';
+        return;
+      }
 
       t = ev.target.closest('[data-sp-new]');
       if (t) { spDraft = spNewDraft(); spMsg = ''; repaintSplit(); return; }
