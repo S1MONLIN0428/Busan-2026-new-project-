@@ -413,6 +413,67 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  // ---- confirm before destroying ------------------------------------------
+  // Every delete on this page is one tap on a small ×, sat right next to things
+  // you tap all the time, and in a shared book it removes the row for everybody.
+  // So each one asks first. The native confirm() would do the job but looks
+  // nothing like the rest of the page, hence this.
+  //
+  // Cancel takes the focus, not delete: if someone dismisses it with the
+  // keyboard out of reflex, the safe answer is the one that fires.
+  var confirmEl = null;
+
+  function confirmClose() {
+    if (!confirmEl) return;
+    if (confirmEl.parentNode) confirmEl.parentNode.removeChild(confirmEl);
+    confirmEl = null;
+    document.documentElement.style.overflow = '';
+    document.removeEventListener('keydown', confirmKey);
+  }
+
+  function confirmKey(ev) {
+    if (ev.key === 'Escape' || ev.keyCode === 27) confirmClose();
+  }
+
+  function confirmAsk(title, detail, onYes) {
+    confirmClose();
+    var el = document.createElement('div');
+    el.setAttribute('data-confirm', '');
+    el.style.cssText = 'position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 60;' +
+      'display: flex; align-items: center; justify-content: center; padding: 24px;' +
+      'background: rgba(35,32,28,0.38);';
+    el.innerHTML = fluid(
+      '<div role="alertdialog" aria-modal="true" style="width: 100%; max-width: 300px; background: #f8f0df; color: #23201c;' +
+        ' border: 1px solid #cfc8bb; border-radius: 18px; padding: 20px; box-shadow: 0 1.25rem 3rem rgba(35,32,28,0.28);' +
+        ' font-family: \'Noto Serif\',\'Noto Serif TC\',\'Noto Serif KR\',\'PingFang TC\',Georgia,serif;' +
+        ' display: flex; flex-direction: column; gap: 14px;">' +
+        '<div style="font-size: 16px; font-weight: 700; line-height: 1.45;">' + esc(title) + '</div>' +
+        (detail ? '<div style="font-size: 13px; color: #6d675e; line-height: 1.6;">' + esc(detail) + '</div>' : '') +
+        '<div style="display: flex; gap: 8px; padding-top: 2px;">' +
+          '<button type="button" data-confirm-no="" style="flex: 1; border: 1px solid #cfc8bb; background: transparent; color: #3d3831; border-radius: 999px; padding: 10px 0; font-family: inherit; font-size: 14px; cursor: pointer;">取消</button>' +
+          '<button type="button" data-confirm-yes="" style="flex: 1; border: 1px solid #a8532c; background: #a8532c; color: #f8f0df; border-radius: 999px; padding: 10px 0; font-family: inherit; font-size: 14px; cursor: pointer;">刪除</button>' +
+        '</div>' +
+      '</div>'
+    );
+    el.addEventListener('click', function (ev) {
+      // Tapping the dimmed area outside the card counts as backing out.
+      if (ev.target === el || (ev.target.closest && ev.target.closest('[data-confirm-no]'))) {
+        confirmClose();
+        return;
+      }
+      if (ev.target.closest && ev.target.closest('[data-confirm-yes]')) {
+        confirmClose();
+        onYes();
+      }
+    });
+    document.body.appendChild(el);
+    document.documentElement.style.overflow = 'hidden';
+    document.addEventListener('keydown', confirmKey);
+    var no = el.querySelector('[data-confirm-no]');
+    if (no && no.focus) no.focus();
+    confirmEl = el;
+  }
+
   // ---- derived view model -------------------------------------------------
   var days, tripTotal, sights, transport, airport, saveBig5, save48, BUDGET, grand48, grandBig5;
   var passRows, coverBig5, cover48, saveBig5Won, save48Won, h48pick, win48, b5over;
@@ -1845,10 +1906,18 @@
       t = ev.target.closest('[data-sp-del]');
       if (t) {
         var did = t.getAttribute('data-sp-del');
-        sp.expenses = sp.expenses.filter(function (e) { return e.id !== did; });
-        if (spDraft && spDraft.id === did) spDraft = null;
-        spSave();
-        repaintSplit();
+        var dExp = null;
+        sp.expenses.forEach(function (e) { if (e.id === did) dExp = e; });
+        confirmAsk(
+          '刪除「' + ((dExp && dExp.title) || '這筆支出') + '」？',
+          (dExp ? won(dExp.won) + '。' : '') + (SP_GROUP ? '這本帳本是共用的，其他人也會少掉這一筆。' : ''),
+          function () {
+            sp.expenses = sp.expenses.filter(function (e) { return e.id !== did; });
+            if (spDraft && spDraft.id === did) spDraft = null;
+            spSave();
+            repaintSplit();
+          }
+        );
         return;
       }
 
@@ -1856,13 +1925,20 @@
       if (t) {
         var mid = t.getAttribute('data-sp-del-member');
         var used = sp.expenses.some(function (e) { return spPayerIds(e).indexOf(mid) >= 0 || e.parts[mid] > 0; });
+        // These two refuse outright, so there is nothing to confirm.
         if (used) { spMsg = spName(mid) + ' 已有帳目，先刪掉相關支出才能移除。'; repaintSplit(); return; }
         if (sp.members.length <= 1) { spMsg = '至少要留一位成員。'; repaintSplit(); return; }
-        sp.members = sp.members.filter(function (m) { return m.id !== mid; });
-        if (spDraft) delete spDraft.payers[mid];
-        spSave();
-        spMsg = '';
-        repaintSplit();
+        confirmAsk(
+          '移除成員「' + spName(mid) + '」？',
+          SP_GROUP ? '這本帳本是共用的，其他人也會少掉這位成員。' : '',
+          function () {
+            sp.members = sp.members.filter(function (m) { return m.id !== mid; });
+            if (spDraft) delete spDraft.payers[mid];
+            spSave();
+            spMsg = '';
+            repaintSplit();
+          }
+        );
         return;
       }
 
@@ -2332,11 +2408,14 @@
       var dKey = del.getAttribute('data-pack-del');
       var dGi = dKey.slice(6).split(':')[0];
       var dLabel = dKey.slice(dKey.indexOf(':', 6) + 1);
-      custom[dGi] = (custom[dGi] || []).filter(function (x) { return x !== dLabel; });
-      delete checked[dKey];
-      persistCustom(); persist();
-      repaintPackGroup(dGi);
-      fitHeight();
+      // The packing list is this browser's own, so no note about other people.
+      confirmAsk('刪除「' + dLabel + '」？', '', function () {
+        custom[dGi] = (custom[dGi] || []).filter(function (x) { return x !== dLabel; });
+        delete checked[dKey];
+        persistCustom(); persist();
+        repaintPackGroup(dGi);
+        fitHeight();
+      });
       return;
     }
 
