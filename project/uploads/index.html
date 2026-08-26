@@ -1202,7 +1202,9 @@
   function spNt(w) { return nt(w * RATE); }
 
   var spDraft = null;                      // null = the form is closed
-  var spPane = { members: false };
+  // 結算 starts open: it is the answer the tab exists to give. 成員 starts
+  // closed because it is setup you touch once.
+  var spPane = { members: false, settle: true };
   var spMsg = '';
 
   function spMember(id) {
@@ -1730,6 +1732,17 @@
     }).join('');
   }
 
+  // The per-person table and the transfers that clear it are one answer, not
+  // two, so they live in one collapsible 結算 with a hairline between them.
+  function spSettleSection() {
+    return '' +
+      '<div data-sp-pane="settle" style="display: ' + (spPane.settle ? 'flex' : 'none') + '; flex-direction: column; gap: 12px;">' +
+        spBalancePane() +
+        '<div style="height: 1px; background: #ddd8ce;"></div>' +
+        spSettlePane() +
+      '</div>';
+  }
+
   function spSectionHead(label, right, key, open) {
     return '' +
       '<button type="button" data-sp-toggle="' + key + '" style="width: 100%; border: 0; background: none; padding: 12px 0; display: flex; align-items: baseline; gap: 10px; cursor: pointer; text-align: left; border-bottom: 1px solid #23201c;">' +
@@ -1742,6 +1755,9 @@
   function spBody() {
     var total = sp.expenses.reduce(function (a, e) { return a + e.won; }, 0);
     var per = sp.members.length ? total / sp.members.length : 0;
+    // Folded away, the 結算 header still has to say whether anything is owed.
+    var settleCount = spTransfers().length;
+    var settleRight = settleCount ? settleCount + ' 筆轉帳' : '已結清';
     return '' +
       '<div style="display: flex; flex-direction: column; gap: 20px;">' +
         '<div style="display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline;">' +
@@ -1772,13 +1788,9 @@
           spFormPane() +
           '<div style="display: flex; flex-direction: column;">' + spListPane() + '</div>' +
         '</div>' +
-        '<div style="display: flex; flex-direction: column; gap: 12px;">' +
-          '<div style="font-size: 11px; letter-spacing: 0.14em; color: #8a8378;">結算</div>' +
-          spBalancePane() +
-        '</div>' +
-        '<div style="display: flex; flex-direction: column; gap: 4px;">' +
-          '<div style="font-size: 11px; letter-spacing: 0.14em; color: #8a8378; border-bottom: 1px solid #23201c; padding-bottom: 12px;">最少轉帳次數</div>' +
-          spSettlePane() +
+        '<div style="display: flex; flex-direction: column;">' +
+          spSectionHead('結算', settleRight, 'settle', spPane.settle) +
+          spSettleSection() +
         '</div>' +
         // Sync state is reassurance, not something to act on, so it sits at the
         // foot of the panel rather than between the figures and the ledger.
