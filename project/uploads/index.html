@@ -1292,9 +1292,39 @@
       ids.forEach(function (id) { out[id] = Math.round(e.parts[id]); });
       return out;
     }
-    var vals = spSpread(e.won, ids.map(function (id) {
-      return e.mode === 'share' ? e.parts[id] : 1;
-    }));
+    var weights = ids.map(function (id) { return e.mode === 'share' ? e.parts[id] : 1; });
+    var wsum = 0;
+    weights.forEach(function (w) { wsum += w; });
+
+    // Everyone who did not pay is rounded UP to a whole won, so every one of
+    // their rows shows the same figure and nobody is asked for an odd extra
+    // won. Whoever paid absorbs what is left over, which is always in their
+    // favour: they end up out of pocket by slightly less than their exact
+    // share. The shares still add up to the bill exactly, so the balances
+    // still sum to zero and the settle-up stays honest.
+    var payers = spPayerIds(e);
+    var absorbers = ids.filter(function (id) { return payers.indexOf(id) >= 0; });
+    if (wsum && absorbers.length && absorbers.length < ids.length) {
+      var used = 0;
+      ids.forEach(function (id, i) {
+        if (absorbers.indexOf(id) >= 0) return;
+        out[id] = Math.ceil(e.won * weights[i] / wsum);
+        used += out[id];
+      });
+      var left = e.won - used;
+      if (left >= 0) {
+        var av = spSpread(left, absorbers.map(function (id) {
+          return e.mode === 'share' ? e.parts[id] : 1;
+        }));
+        absorbers.forEach(function (id, i) { out[id] = av[i]; });
+        return out;
+      }
+      // Rounding up overshot the whole bill, which only happens on amounts too
+      // small to divide. Fall back to the even spread below.
+      out = {};
+    }
+
+    var vals = spSpread(e.won, weights);
     ids.forEach(function (id, i) { out[id] = vals[i]; });
     return out;
   }
