@@ -3,6 +3,13 @@
 A single-page trip itinerary for Busan, plus a split-check ledger (分帳) that
 several people can edit at the same time.
 
+Live at <https://new-test-project-s1monlin0428.vercel.app/> — opening it is
+enough to be in the shared ledger, so that address is the key to it.
+
+> The `-s1monlin0428` suffix is the Vercel scope slug, added because the project
+> name alone was already claimed. `.vercel.app` subdomains are globally unique,
+> so renaming the project to something distinctive is what drops the suffix.
+
 ## Layout
 
 ```
