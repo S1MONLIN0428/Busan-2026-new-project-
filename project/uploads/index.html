@@ -1961,10 +1961,7 @@
         var sharesIn = sp.expenses.filter(function (e) { return e.parts[mid] > 0; }).length;
         confirmAsk(
           '移除成員「' + spName(mid) + '」？',
-          [
-            sharesIn ? '有 ' + sharesIn + ' 筆支出原本分給他，會改由其他人分攤。' : '',
-            SP_GROUP ? '這本帳本是共用的，其他人也會少掉這位成員。' : '',
-          ],
+          sharesIn ? '有 ' + sharesIn + ' 筆受影響的帳目，改由其他成員負擔' : '',
           function () {
             sp.members = sp.members.filter(function (m) { return m.id !== mid; });
             if (spDraft) delete spDraft.payers[mid];
